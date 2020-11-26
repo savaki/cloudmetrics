@@ -15,6 +15,7 @@ package cloudmetrics
 //	limitations under the License.
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,8 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/rcrowley/go-metrics"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 )
 
 // CloudWatch is an interface for *cloudwatch.CloudWatch that clearly identifies the functions
@@ -37,6 +36,7 @@ type CloudWatch interface {
 	PutMetricData(input *cloudwatch.PutMetricDataInput) (*cloudwatch.PutMetricDataOutput, error)
 }
 
+// Datums is a list of cloudwatch.MetricDatum
 type Datums []*cloudwatch.MetricDatum
 
 func (d Datums) Len() int {
@@ -54,13 +54,19 @@ func (d Datums) Swap(i, j int) {
 }
 
 func lookupAvailabilityZone(ctx context.Context) (io.ReadCloser, error) {
-	resp, err := ctxhttp.Get(ctx, http.DefaultClient, "http://169.254.169.254/latest/meta-data/placement/availability-zone")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"http://169.254.169.254/latest/meta-data/placement/availability-zone", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	return resp.Body, nil
 }
 
+// Publisher handles the publication of metrics data to CloudWatch
 type Publisher struct {
 	ctx         context.Context
 	registry    metrics.Registry
@@ -212,7 +218,9 @@ func region(lookupAZ func(context.Context) (io.ReadCloser, error)) string {
 	}
 
 	if region == "" {
-		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
+		defer cancelFunc()
+
 		body, err := lookupAZ(ctx)
 		if err == nil {
 			defer body.Close()
@@ -273,18 +281,18 @@ func Interval(interval time.Duration) func(*Publisher) {
 	}
 }
 
-// Dimensions allows for user specified dimensiosn to be added to the post
-func Dimensions(keyvals ...string) func(*Publisher) {
+// Dimensions allows for user specified dimensions to be added to the post
+func Dimensions(keyVals ...string) func(*Publisher) {
 	return func(p *Publisher) {
-		if len(keyvals)%2 != 0 {
+		if len(keyVals)%2 != 0 {
 			fmt.Fprintf(os.Stderr, "Dimensions requires an even number of arguments")
 			return
 		}
 
-		for i := 0; i < len(keyvals)/2; i = i + 2 {
+		for i := 0; i < len(keyVals)/2; i = i + 2 {
 			p.dimensions = append(p.dimensions, &cloudwatch.Dimension{
-				Name:  aws.String(keyvals[i]),
-				Value: aws.String(keyvals[i+1]),
+				Name:  aws.String(keyVals[i]),
+				Value: aws.String(keyVals[i+1]),
 			})
 		}
 	}
