@@ -281,7 +281,7 @@ func Dimensions(keyvals ...string) func(*Publisher) {
 			return
 		}
 
-		for i := 0; i < len(keyvals)/2; i = i + 2 {
+		for i := 0; i < len(keyvals); i = i + 2 {
 			p.dimensions = append(p.dimensions, &cloudwatch.Dimension{
 				Name:  aws.String(keyvals[i]),
 				Value: aws.String(keyvals[i+1]),
