@@ -273,11 +273,11 @@ func TestPollOnceDimensions(t *testing.T) {
 	registry.Register("blah", c)
 	c.Inc(1)
 
-	publisher := newPublisher(registry, "blah", debug, Dimensions("foo", "bar"))
+	publisher := newPublisher(registry, "blah", debug, Dimensions("foo", "bar", "baz", "qux"))
 	data := publisher.pollOnce()
 
-	if v := len(data[0].Dimensions); v != 1 {
-		t.Errorf("expected 1 event to be published; got %v", v)
+	if v := len(data[0].Dimensions); v != 2 {
+		t.Errorf("expected 2 event dimensions; got %v", v)
 	}
 
 	d := data[0].Dimensions[0]
@@ -285,7 +285,15 @@ func TestPollOnceDimensions(t *testing.T) {
 		t.Errorf("expected dimension name foo; got %v", v)
 	}
 	if v := *d.Value; v != "bar" {
-		t.Errorf("expected dimension name foo; got %v", v)
+		t.Errorf("expected dimension value bar; got %v", v)
+	}
+
+	d = data[0].Dimensions[1]
+	if v := *d.Name; v != "baz" {
+		t.Errorf("expected dimension name baz; got %v", v)
+	}
+	if v := *d.Value; v != "qux" {
+		t.Errorf("expected dimension value qux; got %v", v)
 	}
 }
 
